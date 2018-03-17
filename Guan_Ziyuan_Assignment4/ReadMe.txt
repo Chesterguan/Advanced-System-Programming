@@ -38,15 +38,15 @@ Analysis: Mostly as the same as the Assignment2&3
            3. We need to use "mmap" function to set up the sharing. We need to differ the variables with separated size. The "fd" should be set as"-1", since we need to use MAP_ANONYMOUS.
 	   4, We should use fork to build the relationship of parents and sons. In the assignment, we have one producer and several consumers. We can make them all as sons and when (producer==0), it enters the producer procedure, and else, we can fork to consumers.
 	   5. The "producer" and "consumer" steps are the same with the previous problems.
-	   6. We need to unmmap in the final. The main process will wait for all the sons.
+	   6. Each time, we need to sync the statement of the mmap since the value of variables are changed.
+           7. We need to unmmap in the final. The main process will wait for all the sons.
 ============================
 Tips in MakeFile:
 ----------------------------
            1. Before we use the standard C99 to make sure the "For" loop will not make mistakes, in this assignment,since we use the MAP_ANONYMOUS as the first time , we need to use the standard as "gnu99"  -std=gnu99
            2. We need to add "-plthread" after the object since the object will use the pthread library.
+	   3. The location of the locks are also important to avoid the ddeadlock. Just like the assignment3.
 ============================
-Special Codes:
-----------------------------
-	   
-============================
+During this assignment, I have the assitance from FangZhu and he helped me solved some problems.
+
 
