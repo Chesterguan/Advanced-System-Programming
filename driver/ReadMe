@@ -1,0 +1,15 @@
+The little project is trying to complish a character driver.
+The Steps are:
+	1. Initialize the setting of the driver and insert into the modules.
+
+The Bugs met:
+	1. "No operation permission"
+	    insmod function must be operated in "root"
+	2. "Required key not avaliable"
+	    it means your computer is in uefi mode and the modules can only be used with "certificate"
+	    "EFI_SECURE_BOOT_SIG_ENFORCED" enabled.We can make the certificate for the module, or we can change the BIOS settings.
+	    command:
+                    sudo apt-get install mokutil
+		    sudo mokutil --disable-validation 
+ 	    it will ask you to create a 8-16 password. Do it and reboot the computer. Then the computer will enter the MDK manage interface.
+	    Enter the password as the request and then change the Secure State into "NO". It will be cured.
