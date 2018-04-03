@@ -5,8 +5,7 @@
 
 #ifndef __ASP_MYCDEV__
 #define __ASP_MYCDEV__
-#include <linux/semaphore.h>
-#include <asm/semaphore.h> // we need to use semaphore to lock 
+#include <linux/semaphore.h> // we need to use semaphore to lock 
 #include <linux/device.h>
 
 /* Defaul size of each device - keep it multiple of PAGE_SIZE Just like the Introduction Slide*/

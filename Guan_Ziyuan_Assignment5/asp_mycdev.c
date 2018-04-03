@@ -1,4 +1,3 @@
-
 #include <linux/module.h>   /* Needed by all modules */
 #include <linux/kernel.h>   /* Needed for KERN_INFO */
 #include <linux/init.h>    /* Needed for the macros */
@@ -6,15 +5,14 @@
 #include <linux/fs.h>     /* Needed for file_operations */
 #include <linux/slab.h>    /* Needed for kmalloc, kzalloc etc. */
 #include <linux/errno.h>   /* Needed for error checking */
-#include <linux/semaphore.h>
-#include <asm/semaphore.h>	/* Sync primitives */
+#include <linux/semaphore.h>	/* Sync primitives */
 #include <linux/device.h>	/* device class */
-#include <asm/uaccess.h>	/* copy_*_user */
+#include <linux/uaccess.h>	/* copy_*_user */
 
 #include "asp_mycdev.h"    /* Custom header for the drivers */
 
 /* Driver Info */
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Ziyuan Guan");
 MODULE_DESCRIPTION("ASP: Assignment 5 - Character Driver");
 /* Parameters that can be changed at load time */
@@ -162,7 +160,7 @@ static ssize_t asp_mycdev_write(struct file *filp, const char __user *buf, \
 	if((count + *f_offset) > mycdev->ramdiskSize) { /* write beyond our device size */
 		printk(KERN_WARNING "%s: device %s%d: Attempt to WRITE beyond the device size! Returning!\n",\
 			MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID);
-		up(&mycdev->lock);			/* EXIT lock */
+		up(&mycdev->sem);			/* EXIT lock */
 		return retval;
 	}
 
@@ -381,7 +379,7 @@ static int mycdev_init_module(void)
 		/* Device number */
 		mycdev_devices[i].devID = i;
 		/* Initializing semaphore */
-		DECLARE_MUTEX(&mycdev_devices[i].sem);
+		sema_init(&mycdev_devices[i].sem,1);
 
 		/* Initializing ramdisk */
 		mycdev_devices[i].ramdisk = kzalloc((size_t) ramdisk_size_in_bytes, GFP_KERNEL);
