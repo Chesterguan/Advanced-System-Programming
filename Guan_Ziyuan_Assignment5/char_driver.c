@@ -9,21 +9,59 @@
 #include <linux/device.h>	/* device class */
 #include <linux/uaccess.h>	/* copy_*_user */
 
-#include "asp_mycdev.h"    /* Custom header for the drivers */
 
+//#include "asp_mycdev.h"    /* Custom header for the drivers */
+#define  DEFAULT_RAMDISK_SIZE  16*PAGE_SIZE
+
+/* Dynamic Major by default */
+#define   DEFAULT_MAJOR         700 //Major number of the device
+#define   DEFAULT_MINOR         0
+
+/* Max number of devices by default */
+
+#define   DEFAULT_NUM_DEVICES  3
+
+/* Module name */
+#define  MODULE_NAME     "asp_mycdev"
+#define  MODULE_CLASS_NAME  "mycdrv"
+#define  MODULE_NODE_NAME   "mycdrv"
+#define  MAX_NODE_NAME_SIZE  10
+
+/* Device struct */
+struct asp_mycdev
+{
+	int devID; /* device ID */
+	char *ramdisk; /* device */
+	size_t ramdiskSize; /* device size */
+	struct semaphore sem; /* semaphore for this device */
+	struct cdev cdev; /* char device struct */
+	struct device *device; /* device node in sysfs */
+	bool devReset; /* flag to indicate that the device is reset */
+};
+
+/* IOCTLs */
+#define CDRV_IOC_MAGIC  0x37
+
+/* clear the ramdisk and sets the file position at the beginning */
+#define ASP_CLEAR_BUF  _IO(CDRV_IOC_MAGIC, 0)
+
+/* Maximum number of IOCTL defs implemented in this driver */
+#define ASP_IOCTL_MAXNR  0
+//#define MYDEV_NAME "mycdrv"
 /* Driver Info */
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Ziyuan Guan");
 MODULE_DESCRIPTION("ASP: Assignment 5 - Character Driver");
+MODULE_VERSION("0.1");
 /* Parameters that can be changed at load time */
 static int mycdev_major = DEFAULT_MAJOR;
 static int mycdev_minor = DEFAULT_MINOR;
-static int max_devices = DEFAULT_NUM_DEVICES;
+static int NUM_DEVICES = DEFAULT_NUM_DEVICES;
 static long ramdisk_size_in_bytes = DEFAULT_RAMDISK_SIZE;
 
 module_param(mycdev_major, int, S_IRUGO);
 module_param(mycdev_minor, int, S_IRUGO);
-module_param(max_devices,  int, S_IRUGO);
+module_param(NUM_DEVICES,  int, S_IRUGO);
 module_param(ramdisk_size_in_bytes, long, S_IRUGO);
 
 
@@ -44,18 +82,6 @@ static ssize_t asp_mycdev_write(struct file *, const char __user *, size_t, loff
 static loff_t asp_mycdev_lseek(struct file *, loff_t, int);
 static long asp_mycdev_ioctl(struct file *, unsigned int, unsigned long);
 
-/* fileops for asp_mycdev */
-static struct file_operations asp_mycdev_fileops = {
-	.owner  = THIS_MODULE,
-	.open   = asp_mycdev_open,
-	.read   = asp_mycdev_read,
-	.llseek = asp_mycdev_lseek,
-	.write  = asp_mycdev_write,
-	.release = asp_mycdev_release,
-	.unlocked_ioctl = asp_mycdev_ioctl,
-};
-
-
 /* Function definitions */
 /** 
 * i_ptr  is the pointer to the inode
@@ -75,28 +101,6 @@ static int asp_mycdev_open(struct inode *i_ptr, struct file *filp)
 	printk(KERN_INFO "%s: device %s%d opened [Major: %d, Minor: %d]\n",\
 	 	MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID, imajor(i_ptr), iminor(i_ptr));
 	return 0;
-}
-
-static int setup_cdev(struct asp_mycdev *dev, int index)
-{
-	int error = 0;
-	int retval = 0;
-	dev_t devNo = 0;
-
-	/* Device Number */
-	devNo = MKDEV(mycdev_major, mycdev_minor + index);
-	/* Init cdev */
-	cdev_init(&dev->cdev, &asp_mycdev_fileops);
-	dev->cdev.owner = THIS_MODULE,
-	dev->cdev.ops = &asp_mycdev_fileops;
-	/* Add the device, NOTE:: This makes the device go live! */
-	error = cdev_add(&dev->cdev, devNo, 1);
-	/* report error */
-	if(error) {
-		printk(KERN_WARNING "%s: Error %d adding mycdev%d\n", MODULE_NAME, error, index);
-		retval = -1;
-	}
-	return retval;
 }
 /* release function */
 
@@ -126,8 +130,7 @@ static ssize_t asp_mycdev_read(struct file *filp, char __user *buf, size_t count
 	if(down_interruptible(&mycdev->sem))		/* ENTER Critical Section */
 		return -ERESTARTSYS;
 	if(*f_offset > mycdev->ramdiskSize)			/* already done */
-		up(&mycdev->sem);			/* EXIT the lock */
-		return retval;
+		goto EXIT;
 	if((count + *f_offset) > mycdev->ramdiskSize) { /* read beyond our device size */
 		printk(KERN_WARNING "%s: device %s%d: Attempt to READ beyond the device size!\n",\
 			MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID);
@@ -141,6 +144,9 @@ static ssize_t asp_mycdev_read(struct file *filp, char __user *buf, size_t count
 
 	printk(KERN_DEBUG "%s: device %s%d: bytes read: %d, current position: %d\n",\
 		MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID, (int)retval, (int)*f_offset);
+EXIT:
+	up(&mycdev->sem);			/* EXIT the lock */
+	return retval;
 }
 
 
@@ -160,8 +166,7 @@ static ssize_t asp_mycdev_write(struct file *filp, const char __user *buf, \
 	if((count + *f_offset) > mycdev->ramdiskSize) { /* write beyond our device size */
 		printk(KERN_WARNING "%s: device %s%d: Attempt to WRITE beyond the device size! Returning!\n",\
 			MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID);
-		up(&mycdev->sem);			/* EXIT lock */
-		return retval;
+		goto EXIT;
 	}
 
 	/* copy to user and update the offset in the device */
@@ -171,6 +176,9 @@ static ssize_t asp_mycdev_write(struct file *filp, const char __user *buf, \
 
 	printk(KERN_DEBUG "%s: device %s%d: bytes written: %d, current position: %d\n",\
 		MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID, (int)retval, (int)*f_offset);
+EXIT:
+	up(&mycdev->sem);			/* EXIT lock */
+	return retval;
 }
 
 
@@ -215,8 +223,7 @@ loff_t asp_mycdev_lseek(struct file *filp, loff_t f_offset, int action)
 
 		default:
 			new_offset = -EINVAL;
-			up(&mycdev->sem);
-			return new_offset;
+			goto EXIT;
 	}
 	/* validity checks (lower boundary) */
 	new_offset = (new_offset < 0)? 0: new_offset;
@@ -261,8 +268,7 @@ loff_t asp_mycdev_lseek(struct file *filp, loff_t f_offset, int action)
 				MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID);
 
 			new_offset = -ENOMEM;
-			up(&mycdev->sem);
-			return new_offset;
+			goto EXIT;
 		}
 	}
 	/* update the current seek */
@@ -270,6 +276,10 @@ loff_t asp_mycdev_lseek(struct file *filp, loff_t f_offset, int action)
 
 	printk(KERN_DEBUG "%s: device %s%d: Seeking to position: %ld\n",\
 		MODULE_NAME, "/dev/"MODULE_NODE_NAME, mycdev->devID, (long) new_offset);
+EXIT:
+	up(&mycdev->sem);
+	return new_offset;
+
 }
 
 
@@ -281,7 +291,7 @@ long asp_mycdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	/* Extracts type and number bitfields;
 	don't decode wrong commands; return -ENOTTY (Inappropriate IOCTL)  */
-	if(_IOC_TYPE(cmd) != ASP_MYCDEV_MAGIC)
+	if(_IOC_TYPE(cmd) != CDRV_IOC_MAGIC)
 		return -ENOTTY;
 	if(_IOC_NR(cmd) > ASP_IOCTL_MAXNR)
 		return -ENOTTY;
@@ -319,7 +329,39 @@ long asp_mycdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return retval;
 }
 
+/* fileops for asp_mycdev */
+static struct file_operations asp_mycdev_fileops = {
+	.owner  = THIS_MODULE,
+	.open   = asp_mycdev_open,
+	.read   = asp_mycdev_read,
+	.llseek = asp_mycdev_lseek,
+	.write  = asp_mycdev_write,
+	.release = asp_mycdev_release,
+	.unlocked_ioctl = asp_mycdev_ioctl,
+};
 
+
+static int setup_cdev(struct asp_mycdev *dev, int index)
+{
+	int error = 0;
+	int retval = 0;
+	dev_t devNo = 0;
+
+	/* Device Number */
+	devNo = MKDEV(mycdev_major, mycdev_minor + index);
+	/* Init cdev */
+	cdev_init(&dev->cdev, &asp_mycdev_fileops);
+	dev->cdev.owner = THIS_MODULE,
+	dev->cdev.ops = &asp_mycdev_fileops;
+	/* Add the device, NOTE:: This makes the device go live! */
+	error = cdev_add(&dev->cdev, devNo, 1);
+	/* report error */
+	if(error) {
+		printk(KERN_WARNING "%s: Error %d adding mycdev%d\n", MODULE_NAME, error, index);
+		retval = -1;
+	}
+	return retval;
+}
 
 /* Init function */
 static int mycdev_init_module(void)
@@ -336,18 +378,20 @@ static int mycdev_init_module(void)
 	 unless otherwise specified at load time */
 	if(mycdev_major || mycdev_minor) {
 		devNum = MKDEV(mycdev_major, mycdev_minor);
-		retval = register_chrdev_region(devNum, max_devices, MODULE_NODE_NAME);
+		retval = register_chrdev_region(devNum, NUM_DEVICES, MODULE_NODE_NAME);
+		
 	}
 	else {
-		retval = alloc_chrdev_region(&devNum, mycdev_minor, max_devices, MODULE_NODE_NAME);
+		retval = alloc_chrdev_region(&devNum, mycdev_minor,NUM_DEVICES, MODULE_NODE_NAME);
 		mycdev_major = MAJOR(devNum);
+		//printk(KERN_DEBUG "the module node name is %s\n",MODULE_NODE_NAME);
 	}
 	if(retval < 0){
 		printk(KERN_WARNING "%s: Unable to allocate major %d\n", MODULE_NAME, mycdev_major);
 		return retval;
 	}
 	printk(KERN_DEBUG "%s: Requested Devices - %d, Major Number:- %d, Minor Number- %d\n",\
-		MODULE_NAME, max_devices, mycdev_major, mycdev_minor);
+		MODULE_NAME, NUM_DEVICES, mycdev_major, mycdev_minor);
 
 	/* Setup the device class, needed to create device nodes in sysfs */
 	asp_mycdev_class = class_create(THIS_MODULE, MODULE_CLASS_NAME);
@@ -355,21 +399,18 @@ static int mycdev_init_module(void)
 		printk(KERN_WARNING "%s: Failed to Init Device Class %s\n",\
 			MODULE_NAME, MODULE_CLASS_NAME);
 		retval = -1;
-		mycdev_cleanup_module();
-		return retval;
+		goto FAIL;
 	}
 	printk(KERN_INFO "%s: Created device class: %s\n", MODULE_NAME, MODULE_CLASS_NAME);
 
 	/* Allocate and setup the devices here */
-	mycdev_devices = kzalloc(max_devices * sizeof(struct asp_mycdev), GFP_KERNEL);
+	mycdev_devices = kzalloc(NUM_DEVICES * sizeof(struct asp_mycdev), GFP_KERNEL);
 	if(mycdev_devices == NULL){
 		retval = -ENOMEM;
-		mycdev_cleanup_module();
-		return retval;
 	}
 
 	/* Setup the devices one by one */
-	for(i = 0; i < max_devices; i++)
+	for(i = 0; i < NUM_DEVICES; i++)
 	{
 		char nodeName[MAX_NODE_NAME_SIZE] = { 0 };
 		int cdevStatus = 0;
@@ -423,8 +464,6 @@ static int mycdev_init_module(void)
 	if(ramdiskAllocFailed || nodeSetupFailed || cdevSetupFailed)
 	{
 		retval = -ENOMEM;
-		mycdev_cleanup_module();
-		return retval;
 	}
 
 	printk(KERN_INFO "%s: Initialization Complete!\n", MODULE_NAME);
@@ -432,6 +471,9 @@ static int mycdev_init_module(void)
 	 MODULE_NAME, lastSuccessfulRamdisk, lastSuccessfulNode, lastSuccessfulCdev);
 
 	return 0;
+FAIL:
+	mycdev_cleanup_module();
+	return retval;
 }
 module_init(mycdev_init_module);
 
@@ -489,7 +531,7 @@ static void mycdev_cleanup_module(void)
 
 	/* Cleaning up the chrdev_region,
 	this is never called if the registration failes */
-	unregister_chrdev_region(MKDEV(mycdev_major, mycdev_minor), max_devices);
+	unregister_chrdev_region(MKDEV(mycdev_major, mycdev_minor), NUM_DEVICES);
 
 	printk(KERN_INFO "%s: Cleanup Done!\n", MODULE_NAME);
 }

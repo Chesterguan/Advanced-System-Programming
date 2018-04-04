@@ -1,12 +1,14 @@
-KDIR	:= /usr/src/linux-headers-$(shell uname -r)
-obj-m := asp_mycdev.o
+obj-m := char_driver.o
+
+KERNEL_DIR = /usr/src/linux-headers-$(shell uname -r)
 
 all:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) modules
-#	gcc -Wall -Werror -02 -o rw_test rw_test.c 
-#	gcc -Wall -Werror -02 -o lseek_test lseek_test.c
-#	gcc -Wall -Werror -02 -o ioctl_test ioctl_test.c
+	$(MAKE) -C $(KERNEL_DIR) SUBDIRS=$(shell pwd)
+	
+app: 
+	gcc -o userapp userapp.c
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) clean
-	rm -f *.o.cmd *.symvers *.order *.gch rw_test lseek_test ioctl_test
+	rm -rf *.o *.ko .*.mod.o.cmd .*.o.cmd .*.ko.cmd *.symvers *.mod.c .tmp_versions *.order *~
+clean-app:
+	rm -rf userapp
