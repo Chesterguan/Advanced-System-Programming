@@ -1,0 +1,7 @@
+TestCase4:
+1. There are two threads, thread0 and thread1.
+2. Both of the threads share the same mutex in the userapp.
+3. Thread1 read from the device and It require the semaphore. However, it sleeps after that.
+4. The context is changed to Thread0 while Thread1 sleeps. The thread 0 acquires the mutex lock and writes to the device by coping from the protected global buffer.
+5. It cannot finish as thread 1 has locked the semaphore to read the mode and is sleeping.
+6. The context changed to Thread0 again which wakes up and complete read but cannot proceed as it tried to acquire the mutex lock in the userapp which was already acquired by thread 1. Deadlock happened.

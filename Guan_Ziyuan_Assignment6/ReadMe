@@ -1,0 +1,37 @@
+============================
+=   Name: Ziyuan Guan      =
+=   UFID: 94722121         =
+============================
+=   Assignment <6>         =
+============================
+Files Contained:
+----------------------------
+1. driver_testcase1.c
+2. driver_testcase2.c
+3. driver_testcase3.c
+4. driver_testcase4.c
+5. Makefile
+6. TestCase1.c
+7. TestCase2.c
+8. TestCase3.c
+9. TestCase4.c
+10. TestCase1/2/3/4_ReadMe
+============================
+How To Run The Program:
+----------------------------
+1. Use the Command [Ctrl + T ] to open the terminal
+2. Use the Command [make] to compile the driver_*.c files and get the executable objects
+3. Use the Command [sudo insmod driver_*.ko] to define and insert the driver moduler.
+4. Use the Command [lsmod] to check whether the module has been inserted or not.
+5. Use the Command [make app] to compile userapp
+6. User the Command [sudo ./userapp ] to test the program
+7. Use the Command [sudo rmmod driver_*.ko] to remove the driver.
+8. During the process, you can also use the Command[dmesg] to check the kernel message
+9. The Function of the char_driver contains: Read, Write, Lseek, Icotl, Release and Clean
+============================
+Results:
+----------------------------
+1. Satisfy the requests of the assignments and Checked with userapps
+2. Solved the bugs and upload to github: https://github.com/Chesterguan/Advanced-System-Programming
+============================
+

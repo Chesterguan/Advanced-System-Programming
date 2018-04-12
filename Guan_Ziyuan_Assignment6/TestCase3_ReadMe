@@ -1,0 +1,9 @@
+TestCase3:
+1. The device file is opened (Mode 1) from main thread
+2. The mode is changing to mode 2 using ioctl
+3. Another file is opened in the main thread and right now the mode is 2.
+4. There are two threads Thread0 and Thread1 which share the same buffer.
+5. Thread0 operates on one file(fd=3) while Thread1 operates on the other file(fd=4).
+6. Thread1 acquires the lock first and copied the string from global buffer and write it to the device.
+7. Then we can change mode to 1 by ioctl but it failed since count2 is bigger than 1 so Thread 1 sleeps.
+8. Thread0 is processes then, it tried to acquire the lock so it could read form the device and copy to the buffer. However, the lock is already held, ddeadlocks happen.

@@ -1,0 +1,5 @@
+TestCase2:
+1. In this case, the device is opened from main
+2. There are three threads, Thread0, Thread1, Thread2
+3. Thread0 and Thread1 operate on the file that was opened by the main thread, Thread1 tried to use ioctl for mode 2 and Thread 0 tried to use ioctl for mode 1.
+4. Both of them could process since only one file is needed to open for ioctl to occur. All threads are not able to proceed and a deadlock occurs.

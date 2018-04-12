@@ -1,0 +1,4 @@
+TestCase 1:
+1. There are three threads used in the userapp, Thread0, Thread1,Thread2;
+2. Adeadlock would happen occasionally based on the unknown order in which the threads are sceduled;
+3  Thread2 open a file and exit firstly, and then Thread1 tried to open another file, however,sicne there is a file alread opened in mode 1,it's not able to grab sem2,then it will sleep;Although another file is still not open, the count variable is still increasing. Subsequently, Thread0 gets processed in which there is an ioctl and ioctl will not process a change in mode 1 as count is greater than 1. The files are closed only in the main thread after pthread_join, which didn't happen. So the deadlock would happen. If threads are scheduled in a different order such that ioctl in Thread0 gets invoked before the open of another file in Thread1, then the mode will change correctly and will not have deadocks;
