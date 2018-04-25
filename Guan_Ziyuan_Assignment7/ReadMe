@@ -15,7 +15,7 @@ How To Run The Program:
 1. Use the Command [Ctrl + T ] to open the terminal
 2. Use the Command [make] to compile the usbkbd.c files and get the executable objects
 3. Use the Command [sudo bash bind.sh] to insert the driver "usbkbd" and unbind the keyboard with usbhid and bind with usbkbd
-
+4. Use the Command [make clean] to rmmod the module "usbkbd.ko" and delete the relative files
 ============================
 Results:
 ----------------------------
